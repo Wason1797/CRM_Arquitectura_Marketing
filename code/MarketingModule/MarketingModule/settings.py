@@ -20,7 +20,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '^_v@4unwj38h)af-94jngctn$2u0lg&ls*#8v+8f!h0(afyasm'
+SECRET_KEY = 't6yn30jm+^(dx#6rbyem8fp54npz06!_*e0lo_flurd#sp87%r'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'service',
+    'rest_framework'
 ]
 
 MIDDLEWARE = [
@@ -75,8 +77,12 @@ WSGI_APPLICATION = 'MarketingModule.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.oracle',
+        'NAME': 'db',
+        'USER': 'admin',
+        'PASSWORD': 'Alexander1708',
+        'HOST': 'marketing.c2xmaeq7qoa9.us-east-1.rds.amazonaws.com',
+        'PORT': '1521'
     }
 }
 
