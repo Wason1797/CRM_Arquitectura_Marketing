@@ -38,7 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'service',
-    'rest_framework'
+    'rest_framework',
+    'oracle_json_field'
 ]
 
 MIDDLEWARE = [
@@ -78,10 +79,10 @@ WSGI_APPLICATION = 'MarketingModule.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.oracle',
-        'NAME': 'db',
-        'USER': 'admin',
-        'PASSWORD': 'Alexander1708',
-        'HOST': 'marketing.c2xmaeq7qoa9.us-east-1.rds.amazonaws.com',
+        'NAME': 'orcl',
+        'USER': 'crm',
+        'PASSWORD': 'crmpwd',
+        'HOST': 'localhost',
         'PORT': '1521'
     }
 }
