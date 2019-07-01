@@ -4,10 +4,9 @@ from .serializers import CampaignSerializer, ClientSerializer
 from .models import Campaign, Client
 import datetime as dt
 from django.db.models import Q
-from .functions import get_campaign_clients
+from .functions import get_campaign_clients, decode_token
 from django.db.models import Count
-
-# Create your views here.
+from rest_framework.authentication import get_authorization_header
 
 
 class CampaignView(APIView):
@@ -34,8 +33,7 @@ class CampaignView(APIView):
 
     def get(self, request):
         try:
-            return Response(CampaignSerializer(Campaign.objects.all(),
-                                               many=True).data,
+            return Response(CampaignSerializer(Campaign.objects.all(), many=True).data,
                             status=200)
         except Exception as e:
             return Response(data={"errors": e.args}, status=400)
@@ -59,26 +57,41 @@ class CampaignView(APIView):
 class CampaignLocationReportView(APIView):
 
     def get(self, request):
-        state = request.GET.get('provincia')
-        city = request.GET.get('canton')
-        if state is None:
-            return Response(data={"errors": "missing provincia filter"},
+        province = request.GET.get('province')
+        city = request.GET.get('city')
+        if province is None:
+            return Response(data={"errors": "missing province filter"},
                             status=400)
         elif city is None:
             campaigns_by_location = Campaign.json_objects.filter_json(
-                location__provincia=state)
+                location__provincia=province)
         else:
             campaigns_by_location = Campaign.json_objects.filter_json(
-                Q(location__provincia=state) &
+                Q(location__provincia=province) &
                 Q(location__canton=city))
 
         return Response(CampaignSerializer(campaigns_by_location, many=True).data,
                         status=200)
 
 
+class CampaignGenderReportView(APIView):
+
+    def get(self, request):
+        gender = request.GET.get('gender')
+        if gender is None:
+            return Response(data={"errors": "missing gender filter"},
+                            status=400)
+        else:
+            campaigns_by_gender = Campaign.objects.filter(gender_range=gender)
+            return Response(CampaignSerializer(campaigns_by_gender, many=True).data,
+                            status=200)
+
+
 class ClientView(APIView):
 
     def get(self, request):
+        auth = get_authorization_header(request).split()
+        print(decode_token(auth))
         return Response(data=ClientSerializer(Client.objects.all(), many=True).data,
                         status=200)
 
