@@ -1,6 +1,7 @@
 from django.db import models
 from oracle_json_field.fields import JSONField
 from oracle_json_field.encoders import JSONEncoder
+from oracle_json_field.managers import JsonQueryManager
 
 # Create your models here
 
@@ -14,6 +15,9 @@ class Client(models.Model):
     birth_date = models.DateField()
     gender = models.CharField(max_length=3)
     location = JSONField(encoder=JSONEncoder)
+
+    objects = models.Manager()
+    json_objects = JsonQueryManager()
 
 
 class Campaign(models.Model):
@@ -35,15 +39,22 @@ class Campaign(models.Model):
     products = JSONField(encoder=JSONEncoder)
     clients = models.ManyToManyField(Client, through='CampaignClients')
 
+    objects = models.Manager()
+    json_objects = JsonQueryManager()
+
 
 class CampaignClients(models.Model):
     date_added = models.DateTimeField()
     campaign = models.ForeignKey(Campaign, models.PROTECT)
     client = models.ForeignKey(Client, models.PROTECT)
 
+    objects = models.Manager()
+
 
 class Advisor(models.Model):
     user_name = models.CharField(max_length=128)
+
+    objects = models.Manager()
 
 
 class TelemarketingResult(models.Model):
@@ -57,3 +68,5 @@ class TelemarketingResult(models.Model):
     created_by = models.BigIntegerField()
     modified_by = models.BigIntegerField()
     result_detail = models.TextField()
+
+    objects = models.Manager()
