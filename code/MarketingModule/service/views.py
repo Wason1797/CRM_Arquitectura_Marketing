@@ -109,3 +109,42 @@ class TelemarketingResultView(APIView):
 
     def put(self, request):
         pass
+
+
+class ClientsCampaignReport(APIView):
+
+    def get(self, request):
+        campaign_id = request.GET.get('campaign_id')
+        if campaign_id is None:
+            return Response(data={"errors":"missing campaign id filter"}, 
+                            status=400)
+        else:
+            clients = Client.objects.filter(campaign__id=int(campaign_id))
+            return Response(data=ClientSerializer(clients, many=True).data,
+                            status=200)
+
+
+class CampaignIdReport(APIView):
+
+    def get(self,request):
+        campaign_id = request.GET.get('campaign_id')
+        if campaign_id is None:
+            return Response(data={"errors":"missing campaign id filter"}, 
+                            status=400)
+        else:
+            campaing = Campaign.objects.get(id=int(campaign_id))
+            return Response(data=CampaignSerializer(campaing, many=False).data,
+                            status=200)
+
+
+class ClientsByAdvisor(APIView):
+    
+    def get(self, request):
+        advisor_id = request.GET.get('advisor_id')
+        if advisor_id:
+            clients = Client.objects.filter(advisor__id=int(advisor_id))
+            return Response(data=ClientSerializer(clients, many=True).data,
+                            status=200)
+        else:
+            return Response(data={"errors":"missing advisor id filter"}, 
+                            status=400)
