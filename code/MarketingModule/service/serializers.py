@@ -1,6 +1,6 @@
 from rest_framework.serializers import ModelSerializer, JSONField, \
     DecimalField, EmailField, ChoiceField, IntegerField, DateField
-from .models import Campaign, Client
+from .models import Campaign, Client, Advisor
 
 
 class CampaignSerializer(ModelSerializer):
@@ -27,4 +27,12 @@ class ClientSerializer(ModelSerializer):
 
     class Meta:
         model = Client
+        fields = '__all__'
+
+
+class AdvisorSerializer(ModelSerializer):
+
+    class Meta:
+
+        model = Advisor
         fields = '__all__'

@@ -1,7 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .serializers import CampaignSerializer, ClientSerializer
-from .models import Campaign, Client
+from .serializers import CampaignSerializer, ClientSerializer, \
+    AdvisorSerializer
+from .models import Campaign, Client, Advisor
 import datetime as dt
 from django.db.models import Q
 from .functions import get_campaign_clients, decode_token
@@ -33,8 +34,14 @@ class CampaignView(APIView):
 
     def get(self, request):
         try:
-            return Response(CampaignSerializer(Campaign.objects.all(), many=True).data,
-                            status=200)
+            campaign_id = request.GET.get('campaign_id')
+            if campaign_id:
+                campaing = Campaign.objects.get(id=int(campaign_id))
+                return Response(data=CampaignSerializer(campaing).data,
+                                status=200)
+            else:
+                return Response(CampaignSerializer(Campaign.objects.all(), many=True).data,
+                                status=200)
         except Exception as e:
             return Response(data={"errors": e.args}, status=400)
 
@@ -52,6 +59,20 @@ class CampaignView(APIView):
                 return Response(status=400)
         except Exception as e:
             return Response(data={"errors": e.args}, status=400)
+
+
+class AdvisorView(APIView):
+
+    def get(self, request):
+        return Response(data=AdvisorSerializer(Advisor.objects.all(), many=True).data, status=200)
+
+    def post(self, request):
+        serializedAdvisor = AdvisorSerializer(data=request.data, partial=True)
+        if serializedAdvisor.is_valid():
+            serializedAdvisor.save()
+            return Response(status=201)
+        else:
+            return Response(serializedAdvisor.errors, status=400)
 
 
 class CampaignLocationReportView(APIView):
@@ -111,12 +132,12 @@ class TelemarketingResultView(APIView):
         pass
 
 
-class ClientsCampaignReport(APIView):
+class ClientsCampaignReportView(APIView):
 
     def get(self, request):
         campaign_id = request.GET.get('campaign_id')
         if campaign_id is None:
-            return Response(data={"errors":"missing campaign id filter"}, 
+            return Response(data={"errors": "missing campaign id filter"},
                             status=400)
         else:
             clients = Client.objects.filter(campaign__id=int(campaign_id))
@@ -124,27 +145,14 @@ class ClientsCampaignReport(APIView):
                             status=200)
 
 
-class CampaignIdReport(APIView):
+class ClientsByAdvisorView(APIView):
 
-    def get(self,request):
-        campaign_id = request.GET.get('campaign_id')
-        if campaign_id is None:
-            return Response(data={"errors":"missing campaign id filter"}, 
-                            status=400)
-        else:
-            campaing = Campaign.objects.get(id=int(campaign_id))
-            return Response(data=CampaignSerializer(campaing, many=False).data,
-                            status=200)
-
-
-class ClientsByAdvisor(APIView):
-    
     def get(self, request):
         advisor_id = request.GET.get('advisor_id')
         if advisor_id:
-            clients = Client.objects.filter(advisor__id=int(advisor_id))
+            clients = Client.objects.filter(telemarketingresult__advisor__id=int(advisor_id))
             return Response(data=ClientSerializer(clients, many=True).data,
                             status=200)
         else:
-            return Response(data={"errors":"missing advisor id filter"}, 
+            return Response(data={"errors": "missing advisor id filter"},
                             status=400)
