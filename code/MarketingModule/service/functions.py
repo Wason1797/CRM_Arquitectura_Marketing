@@ -7,4 +7,3 @@ def get_campaign_clients(**kargs):
 
 def decode_token(token):
     return jwt.decode(token[1], 'secrets', algorithms=['HS256'])
-

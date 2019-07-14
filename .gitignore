@@ -104,3 +104,6 @@ venv.bak/
 .mypy_cache/
 code/.ionide/symbolCache.db
 migrations/
+CentralDeRiesgo/CentralDeRiesgo/CentralDeRiesgo-ear/nb-configuration.xml
+CentralDeRiesgo/CentralDeRiesgo/CentralDeRiesgo-ejb/nb-configuration.xml
+CentralDeRiesgo/CentralDeRiesgo/CentralDeRiesgo-web/nb-configuration.xml
