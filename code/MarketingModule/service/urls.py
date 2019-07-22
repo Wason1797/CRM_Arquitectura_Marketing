@@ -1,6 +1,6 @@
 from .views import CampaignView, CampaignLocationReportView, ClientView, \
     ClientsTotalCampaignsReport, CampaignGenderReportView, ClientsByAdvisorView, \
-    ClientsCampaignReportView, AdvisorView
+    ClientsCampaignReportView, AdvisorView, CalculateRiskView, TelemarketingResultView
 from django.urls import path
 
 urlpatterns = [
@@ -12,4 +12,6 @@ urlpatterns = [
     path('clients-advisor-report/', ClientsByAdvisorView.as_view()),
     path('clients-campaign-report/', ClientsCampaignReportView.as_view()),
     path('campaign-gender-report/', CampaignGenderReportView.as_view()),
+    path('client-risk/', CalculateRiskView.as_view()),
+    path('telemarketing-result/', TelemarketingResultView.as_view()),
 ]

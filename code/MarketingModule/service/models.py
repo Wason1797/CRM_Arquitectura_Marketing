@@ -2,6 +2,7 @@ from django.db import models
 from oracle_json_field.fields import JSONField
 from oracle_json_field.encoders import JSONEncoder
 from oracle_json_field.managers import JsonQueryManager
+from django.utils import timezone
 
 # Create your models here
 
@@ -30,7 +31,7 @@ class Campaign(models.Model):
     publicity_configuration = JSONField(encoder=JSONEncoder)
     created_by = models.BigIntegerField()
     modified_by = models.BigIntegerField()
-    creation_date = models.DateTimeField()
+    creation_date = models.DateTimeField(default=timezone.now)
     last_modification_date = models.DateTimeField()
     state = models.CharField(max_length=3)
     stage = models.CharField(max_length=3)
@@ -44,7 +45,7 @@ class Campaign(models.Model):
 
 
 class CampaignClients(models.Model):
-    date_added = models.DateTimeField()
+    date_added = models.DateTimeField(default=timezone.now)
     campaign = models.ForeignKey(Campaign, models.PROTECT)
     client = models.ForeignKey(Client, models.PROTECT)
 
@@ -61,12 +62,12 @@ class TelemarketingResult(models.Model):
     campaign = models.ForeignKey(Campaign, models.PROTECT)
     client = models.ForeignKey(Client, models.PROTECT)
     advisor = models.ForeignKey(Advisor, models.PROTECT)
-    result = models.CharField(max_length=10)
-    client_risk = models.CharField(max_length=10)
-    creation_date = models.DateTimeField()
-    last_call_date = models.DateTimeField()
+    result = models.CharField(max_length=10, blank=True)
+    client_risk = models.CharField(max_length=10, blank=True)
+    creation_date = models.DateTimeField(default=timezone.now)
+    last_call_date = models.DateTimeField(null=True, blank=True)
     created_by = models.BigIntegerField()
     modified_by = models.BigIntegerField()
-    result_detail = models.TextField()
+    result_detail = models.TextField(blank=True)
 
     objects = models.Manager()

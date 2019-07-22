@@ -1,11 +1,11 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import CampaignSerializer, ClientSerializer, \
-    AdvisorSerializer
-from .models import Campaign, Client, Advisor
+    AdvisorSerializer, TelemarketingResultSerializer
+from .models import Campaign, Client, Advisor, TelemarketingResult
 import datetime as dt
 from django.db.models import Q
-from .functions import get_campaign_clients, decode_token
+from .functions import decode_token, calculate_risk, get_campaign_clients
 from django.db.models import Count
 from rest_framework.authentication import get_authorization_header
 
@@ -15,22 +15,47 @@ class CampaignView(APIView):
     def post(self, request):
         try:
             updated_data = request.data
-            updated_data['creation_date'] = dt.datetime.now().isoformat()
-            updated_data['last_modification_date'] = updated_data['creation_date']
+            # updated_data['creation_date'] = dt.datetime.now().isoformat()
+            updated_data['last_modification_date'] = dt.datetime.now()
             updated_data['state'] = "C"
-            serializedCampaign = CampaignSerializer(
+            age_range = updated_data.get('age_range').split('-')
+            earning_range = updated_data.get('earning_range').split('-')
+            serialized_campaign = CampaignSerializer(
                 data=updated_data, partial=True)
-            if serializedCampaign.is_valid():
-                campaign = serializedCampaign.save()
-                campaign.client_set.add(get_campaign_clients(
-                    updated_data['age_range']
-                    # TODO consume the api and get all clients
-                ))
+            if serialized_campaign.is_valid():
+                clients = get_campaign_clients(
+                    location=updated_data.get('location').get('provincia'),
+                    gender=updated_data.get('gender_range'),
+                    min_age=int(age_range[0]),
+                    max_age=int(age_range[1]),
+                    min_salary=earning_range[0],
+                    max_salary=int(earning_range[1]))
+                curated_clients = []
+                for client in clients:
+                    if not Client.objects.filter(dni=client.get('dni')).exists():
+                        curated_clients.append(client)
+                serialized_clients = ClientSerializer(data=curated_clients, many=True)
+                if serialized_clients.is_valid():
+                    serialized_clients.save()
+
+                del curated_clients
+                client_dnis = []
+                for client in clients:
+                    client_dnis.append(client.get('dni'))
+                del clients
+
+                db_clients = list(Client.objects.filter(dni__in=client_dnis))
+                del client_dnis
+
+                campaign = serialized_campaign.save()
+                campaign.clients.set(db_clients)
+
                 return Response(status=201)
             else:
-                return Response(serializedCampaign.errors, status=400)
+                return Response(serialized_campaign.errors, status=400)
         except Exception as e:
-            return Response({"errors": e.args}, status=400)
+            print(e)
+            return Response({"errors": e.__dict__}, status=400)
 
     def get(self, request):
         try:
@@ -49,9 +74,9 @@ class CampaignView(APIView):
         try:
             updated_data = request.data
             campaignInstance = Campaign.objects.get(id=int(updated_data['id']))
-            updated_data['last_modification_date'] = dt.datetime.now().isoformat()
+            updated_data['last_modification_date'] = dt.datetime.now()
             serializedCampaign = CampaignSerializer(
-                campaignInstance, data=request.data, partial=True)
+                campaignInstance, data=updated_data, partial=True)
             if serializedCampaign.is_valid():
                 serializedCampaign.save()
                 return Response(status=201)
@@ -81,8 +106,20 @@ class CampaignLocationReportView(APIView):
         province = request.GET.get('province')
         city = request.GET.get('city')
         if province is None:
-            return Response(data={"errors": "missing province filter"},
-                            status=400)
+            result = dict()
+            campaigns = Campaign.json_objects.all()
+            for campaign in campaigns:
+                if campaign.location.get('provincia') in result:
+                    result[campaign.location.get('provincia')] += 1
+                else:
+                    result[campaign.location.get('provincia')] = 1
+            result_list = []
+            for key, value in result.items():
+                result_list.append({
+                    'province': key,
+                    'ammount': value
+                })
+            return Response(data=result_list, status=200)
         elif city is None:
             campaigns_by_location = Campaign.json_objects.filter_json(
                 location__provincia=province)
@@ -121,15 +158,44 @@ class ClientsTotalCampaignsReport(APIView):
 
     def get(self, request):
         clients_by_campaign = Client.objects.values('id', 'dni', 'email', 'full_name').annotate(
-            total_campaigns=Count('campaignclients__campaign_id'))
+            total_campaigns=Count('campaignclients__campaign_id')).order_by('-total_campaigns')[:10]
         return Response(data=ClientSerializer(clients_by_campaign, many=True).data,
                         status=200)
 
 
 class TelemarketingResultView(APIView):
 
+    def get(self, request):
+        return Response(data=TelemarketingResultSerializer(
+            TelemarketingResult.objects.all(), many=True).data, status=200)
+
+    def post(self, request):
+        result_data = request.data
+        # result_data['creation_date'] = dt.datetime.now().isoformat()
+        serialized_result = TelemarketingResultSerializer(data=result_data, partial=True)
+        if serialized_result.is_valid():
+            serialized_result.save()
+            return Response(status=201)
+        else:
+            return Response(serialized_result.errors, status=400)
+
     def put(self, request):
-        pass
+        try:
+            updated_data = request.data
+            telemarketing_instance = TelemarketingResult.objects.get(
+                advisor__id=int(updated_data['advisor']),
+                client__id=int(updated_data['client']),
+                campaign__id=int(updated_data['campaign']))
+            updated_data['last_call_date'] = dt.datetime.now().isoformat()
+            serialized_result = TelemarketingResultSerializer(
+                telemarketing_instance, data=updated_data, partial=True)
+            if serialized_result.is_valid():
+                serialized_result.save()
+                return Response(status=201)
+            else:
+                return Response(status=400)
+        except Exception as e:
+            return Response(data={"errors": e.args}, status=400)
 
 
 class ClientsCampaignReportView(APIView):
@@ -156,3 +222,13 @@ class ClientsByAdvisorView(APIView):
         else:
             return Response(data={"errors": "missing advisor id filter"},
                             status=400)
+
+
+class CalculateRiskView(APIView):
+
+    def get(self, request):
+        dni = request.GET.get('dni')
+
+        client = Client.objects.get(dni=dni)
+        risk = calculate_risk(client, 'localhost')
+        return Response(data=dict({'risk': risk}, **ClientSerializer(client).data))

@@ -1,0 +1,14 @@
+autopep8==1.4.4
+cx-Oracle==7.1.3
+Django==2.2.2
+django-jsonfield==1.2.0
+djangorestframework==3.9.4
+entrypoints==0.3
+flake8==3.7.7
+mccabe==0.6.1
+oracle-json-field==0.0.7
+pycodestyle==2.5.0
+pyflakes==2.1.1
+PyJWT==1.7.1
+pytz==2019.1
+sqlparse==0.3.0
