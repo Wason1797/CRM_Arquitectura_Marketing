@@ -180,8 +180,17 @@ class CampaignGenderReportView(APIView):
 class ClientView(APIView):
 
     def get(self, request):
-        return Response(data=ClientSerializer(Client.objects.all(), many=True).data,
-                        status=200)
+        try:
+            client_id = request.GET.get('client_id')
+            if client_id:
+                return Response(data=ClientSerializer(Client.objects.get(id=int(client_id))).data,
+                                status=200)
+            else:
+                return Response(data=ClientSerializer(Client.objects.all(), many=True).data,
+                                status=200)
+
+        except Exception as e:
+            return Response(data={"errors": str(e)}, status=500)
 
 
 class ClientsTotalCampaignsReport(APIView):
@@ -204,14 +213,26 @@ class TelemarketingResultView(APIView):
 
         try:
             created_by = request.GET.get('created_by')
-            return Response(data=TelemarketingResultSerializer(
-                TelemarketingResult.objects.filter(campaign__created_by=created_by), many=True).data, status=200)
+            advisor = request.GET.get('advisor')
+            campaign = request.GET.get('campaign')
+            client = request.GET.get('client')
+            if advisor and campaign and client:
+                return Response(data=TelemarketingResultSerializer(
+                    TelemarketingResult.objects.get(
+                        advisor__id=int(advisor),
+                        client__id=int(client),
+                        campaign__id=int(campaign))
+                ).data, status=200)
+            elif created_by:
+                return Response(data=TelemarketingResultSerializer(
+                    TelemarketingResult.objects.filter(campaign__created_by=created_by), many=True).data, status=200)
+            else:
+                return Response(data={"errors": "missing created by or advisor, campaign, client filters"}, status=400)
         except Exception as e:
             return Response(data={"errors": str(e)}, status=500)
 
     def post(self, request):
         result_data = request.data
-        # result_data['creation_date'] = dt.datetime.now().isoformat()
         serialized_result = TelemarketingResultSerializer(data=result_data, partial=True)
         if serialized_result.is_valid():
             serialized_result.save()
@@ -277,9 +298,8 @@ class CalculateRiskView(APIView):
 
     def get(self, request):
         try:
-            dni = request.GET.get('dni')
-
-            client = Client.objects.get(dni=dni)
+            client_id = request.GET.get('client_id')
+            client = Client.objects.get(id=client_id)
             risk = calculate_risk(client, 'localhost')
             return Response(data=dict({'risk': risk}, **ClientSerializer(client).data))
         except Exception as e:
