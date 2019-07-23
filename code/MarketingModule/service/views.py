@@ -254,7 +254,7 @@ class TelemarketingResultView(APIView):
                 serialized_result.save()
                 return Response(status=201)
             else:
-                return Response(status=400)
+                return Response(data=serialized_result.errors, status=400)
         except Exception as e:
             return Response(data={"errors": str(e)}, status=500)
 

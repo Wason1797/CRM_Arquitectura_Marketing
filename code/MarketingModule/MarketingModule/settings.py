@@ -11,18 +11,26 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 import os
+import json
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+with open(os.path.join(BASE_DIR, 'secrets.json')) as secrets_file:
+    secrets = json.load(secrets_file)
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 't6yn30jm+^(dx#6rbyem8fp54npz06!_*e0lo_flurd#sp87%r'
+def get_secret(setting, secrets=secrets):
+    """Get secret setting or fail with ImproperlyConfigured"""
+    try:
+        return secrets[setting]
+    except KeyError:
+        raise ImproperlyConfigured("Set the {} setting".format(setting))
 
-# SECURITY WARNING: don't run with debug turned on in production!
+
+SECRET_KEY = get_secret('SECRET_KEY')
+
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
@@ -82,10 +90,10 @@ WSGI_APPLICATION = 'MarketingModule.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.oracle',
-        'NAME': 'orcl',
-        'USER': 'crm',
-        'PASSWORD': 'crmpwd',
-        'HOST': 'localhost',
+        'NAME': 'mkdb',
+        'USER': 'admin',
+        'PASSWORD': get_secret('DB_PWD'),
+        'HOST': get_secret('DB_HOST'),
         'PORT': '1521'
     }
 }
