@@ -1,5 +1,3 @@
-import jwt
-
 
 def get_campaign_clients(**kargs):
     return [
@@ -39,10 +37,6 @@ def get_campaign_clients(**kargs):
     ]
 
 
-def decode_token(token):
-    return jwt.decode(token[1], 'secrets', algorithms=['HS256'])
-
-
 def get_person_from_risk_db(dni, ip):
     from zeep import Client
     from zeep.helpers import serialize_object
@@ -60,3 +54,17 @@ def calculate_risk(client, ip):
     debt = get_person_from_risk_db(client.dni, ip)['deuda']
 
     return 'HIG' if debt > salary*2 else 'MID' if debt >= salary else 'LOW'
+
+
+def get_list_chunks(_list, size):
+
+    for i in range(0, size):
+        yield _list[i::size]
+
+
+def get_file_from_s3_service(url):
+    from requests import get
+    data = get(url)
+    path = url.split('%2F')[-1].split('/')[0]
+    open(path, 'wb').write(data.content)
+    return path

@@ -5,9 +5,8 @@ from .serializers import CampaignSerializer, ClientSerializer, \
 from .models import Campaign, Client, Advisor, TelemarketingResult
 import datetime as dt
 from django.db.models import Q
-from .functions import decode_token, calculate_risk, get_campaign_clients
+from .functions import calculate_risk, get_campaign_clients, get_list_chunks, get_file_from_s3_service
 from django.db.models import Count
-from rest_framework.authentication import get_authorization_header
 
 
 class CampaignView(APIView):
@@ -15,9 +14,10 @@ class CampaignView(APIView):
     def post(self, request):
         try:
             updated_data = request.data
-            # updated_data['creation_date'] = dt.datetime.now().isoformat()
             updated_data['last_modification_date'] = dt.datetime.now()
             updated_data['state'] = "C"
+            advisors = updated_data['advisors']
+            del updated_data['advisors']
             age_range = updated_data.get('age_range').split('-')
             earning_range = updated_data.get('earning_range').split('-')
             serialized_campaign = CampaignSerializer(
@@ -50,25 +50,49 @@ class CampaignView(APIView):
                 campaign = serialized_campaign.save()
                 campaign.clients.set(db_clients)
 
+                client_chunks = list(get_list_chunks(db_clients, len(advisors)))
+                sliced_db_clients = zip(client_chunks, advisors)
+                del client_chunks
+
+                telemarketing_results = []
+                for client_chunk, advisor in sliced_db_clients:
+                    for client in client_chunk:
+                        telemarketing_results.append({
+                            'client': client.id,
+                            'campaign': campaign.id,
+                            'advisor': advisor,
+                            'created_by': campaign.created_by,
+                            'modified_by': campaign.modified_by
+                        })
+
+                serialized_telemarketing = TelemarketingResultSerializer(data=telemarketing_results, many=True)
+                if serialized_telemarketing.is_valid():
+                    serialized_telemarketing.save()
+                else:
+                    print(serialized_telemarketing.errors)
+
                 return Response(status=201)
             else:
                 return Response(serialized_campaign.errors, status=400)
         except Exception as e:
-            print(e)
-            return Response({"errors": e.__dict__}, status=400)
+            return Response(data={"errors": str(e)}, status=500)
 
     def get(self, request):
         try:
             campaign_id = request.GET.get('campaign_id')
+            created_by = request.GET.get('created_by')
             if campaign_id:
                 campaing = Campaign.objects.get(id=int(campaign_id))
                 return Response(data=CampaignSerializer(campaing).data,
+                                status=200)
+            elif created_by:
+                return Response(CampaignSerializer(Campaign.objects.filter(created_by=int(created_by)), many=True).data,
                                 status=200)
             else:
                 return Response(CampaignSerializer(Campaign.objects.all(), many=True).data,
                                 status=200)
         except Exception as e:
-            return Response(data={"errors": e.args}, status=400)
+            return Response(data={"errors": str(e)}, status=500)
 
     def put(self, request):
         try:
@@ -83,7 +107,7 @@ class CampaignView(APIView):
             else:
                 return Response(status=400)
         except Exception as e:
-            return Response(data={"errors": e.args}, status=400)
+            return Response(data={"errors": str(e)}, status=500)
 
 
 class AdvisorView(APIView):
@@ -103,11 +127,12 @@ class AdvisorView(APIView):
 class CampaignLocationReportView(APIView):
 
     def get(self, request):
+        created_by = request.GET.get('created_by')
         province = request.GET.get('province')
         city = request.GET.get('city')
-        if province is None:
+        if province is None and created_by:
             result = dict()
-            campaigns = Campaign.json_objects.all()
+            campaigns = Campaign.json_objects.filter(created_by=int(created_by))
             for campaign in campaigns:
                 if campaign.location.get('provincia') in result:
                     result[campaign.location.get('provincia')] += 1
@@ -122,11 +147,13 @@ class CampaignLocationReportView(APIView):
             return Response(data=result_list, status=200)
         elif city is None:
             campaigns_by_location = Campaign.json_objects.filter_json(
-                location__provincia=province)
+                Q(location__provincia=province) &
+                Q(created_by=created_by))
         else:
             campaigns_by_location = Campaign.json_objects.filter_json(
                 Q(location__provincia=province) &
-                Q(location__canton=city))
+                Q(location__canton=city) &
+                Q(created_by=created_by))
 
         return Response(CampaignSerializer(campaigns_by_location, many=True).data,
                         status=200)
@@ -135,21 +162,24 @@ class CampaignLocationReportView(APIView):
 class CampaignGenderReportView(APIView):
 
     def get(self, request):
-        gender = request.GET.get('gender')
-        if gender is None:
-            return Response(data={"errors": "missing gender filter"},
-                            status=400)
-        else:
-            campaigns_by_gender = Campaign.objects.filter(gender_range=gender)
-            return Response(CampaignSerializer(campaigns_by_gender, many=True).data,
-                            status=200)
+        try:
+            created_by = request.GET.get('created_by')
+            gender = request.GET.get('gender')
+            if gender and created_by:
+                campaigns_by_gender = Campaign.objects.filter(Q(gender_range=gender) & Q(created_by=created_by))
+                return Response(CampaignSerializer(campaigns_by_gender, many=True).data,
+                                status=200)
+
+            else:
+                return Response(data={"errors": "missing gender or created by filters"},
+                                status=400)
+        except Exception as e:
+            return Response(data={"errors": str(e)}, status=500)
 
 
 class ClientView(APIView):
 
     def get(self, request):
-        auth = get_authorization_header(request).split()
-        print(decode_token(auth))
         return Response(data=ClientSerializer(Client.objects.all(), many=True).data,
                         status=200)
 
@@ -157,17 +187,27 @@ class ClientView(APIView):
 class ClientsTotalCampaignsReport(APIView):
 
     def get(self, request):
-        clients_by_campaign = Client.objects.values('id', 'dni', 'email', 'full_name').annotate(
-            total_campaigns=Count('campaignclients__campaign_id')).order_by('-total_campaigns')[:10]
-        return Response(data=ClientSerializer(clients_by_campaign, many=True).data,
-                        status=200)
+        try:
+            created_by = request.GET.get('created_by')
+            clients_by_campaign = Client.objects.filter(campaign__created_by=int(created_by))\
+                .values('id', 'dni', 'email', 'full_name').annotate(
+                total_campaigns=Count('campaignclients__campaign_id')).order_by('-total_campaigns')[:10]
+            return Response(data=ClientSerializer(clients_by_campaign, many=True).data,
+                            status=200)
+        except Exception as e:
+            return Response(data={"errors": str(e)}, status=500)
 
 
 class TelemarketingResultView(APIView):
 
     def get(self, request):
-        return Response(data=TelemarketingResultSerializer(
-            TelemarketingResult.objects.all(), many=True).data, status=200)
+
+        try:
+            created_by = request.GET.get('created_by')
+            return Response(data=TelemarketingResultSerializer(
+                TelemarketingResult.objects.filter(campaign__created_by=created_by), many=True).data, status=200)
+        except Exception as e:
+            return Response(data={"errors": str(e)}, status=500)
 
     def post(self, request):
         result_data = request.data
@@ -195,40 +235,111 @@ class TelemarketingResultView(APIView):
             else:
                 return Response(status=400)
         except Exception as e:
-            return Response(data={"errors": e.args}, status=400)
+            return Response(data={"errors": str(e)}, status=500)
 
 
 class ClientsCampaignReportView(APIView):
 
     def get(self, request):
-        campaign_id = request.GET.get('campaign_id')
-        if campaign_id is None:
-            return Response(data={"errors": "missing campaign id filter"},
-                            status=400)
-        else:
-            clients = Client.objects.filter(campaign__id=int(campaign_id))
-            return Response(data=ClientSerializer(clients, many=True).data,
-                            status=200)
+        try:
+            campaign_id = request.GET.get('campaign_id')
+            if campaign_id is None:
+                return Response(data={"errors": "missing campaign id filter"},
+                                status=400)
+            else:
+                clients = Client.objects.filter(campaign__id=int(campaign_id))
+                return Response(data=ClientSerializer(clients, many=True).data,
+                                status=200)
+        except Exception as e:
+            return Response(data={"errors": str(e)}, status=500)
 
 
 class ClientsByAdvisorView(APIView):
 
     def get(self, request):
-        advisor_id = request.GET.get('advisor_id')
-        if advisor_id:
-            clients = Client.objects.filter(telemarketingresult__advisor__id=int(advisor_id))
-            return Response(data=ClientSerializer(clients, many=True).data,
-                            status=200)
-        else:
-            return Response(data={"errors": "missing advisor id filter"},
-                            status=400)
+        try:
+            advisor_id = request.GET.get('advisor_id')
+            campaign_id = request.GET.get('campaign_id')
+            if advisor_id:
+                clients = Client.objects.filter(
+                    Q(telemarketingresult__advisor__id=int(advisor_id)) &
+                    Q(telemarketingresult__campaign__id=int(campaign_id)))
+                return Response(data=ClientSerializer(clients, many=True).data,
+                                status=200)
+            else:
+                return Response(data={"errors": "missing advisor or campaign id filter"},
+                                status=400)
+        except Exception as e:
+            return Response(data={"errors": str(e)}, status=500)
 
 
 class CalculateRiskView(APIView):
 
     def get(self, request):
-        dni = request.GET.get('dni')
+        try:
+            dni = request.GET.get('dni')
 
-        client = Client.objects.get(dni=dni)
-        risk = calculate_risk(client, 'localhost')
-        return Response(data=dict({'risk': risk}, **ClientSerializer(client).data))
+            client = Client.objects.get(dni=dni)
+            risk = calculate_risk(client, 'localhost')
+            return Response(data=dict({'risk': risk}, **ClientSerializer(client).data))
+        except Exception as e:
+            return Response(data={"errors": str(e)}, status=500)
+
+
+class SendEmails(APIView):
+
+    def get(self, request):
+        try:
+            import smtplib
+            from email.mime.multipart import MIMEMultipart
+            from email.mime.text import MIMEText
+
+            campaign_id = request.GET.get('campaign_id')
+
+            if campaign_id:
+                campaign = Campaign.json_objects.get(id=int(campaign_id))
+                clients = campaign.clients.all()
+
+                _from = 'arquitecturacrm@gmail.com'
+                _pwd = 'ArquitecturaSW.2019'
+
+                _mail_server = 'smtp.gmail.com'
+                _port = 587
+
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = 'Publicity test'
+                msg['From'] = _from
+
+                relative_path = campaign.publicity_configuration.get('path')
+
+                path = get_file_from_s3_service(
+                    'http://18.207.118.94:3000/documentfolder/14{}/alex'.format(relative_path))
+
+                with open(path, mode='r', encoding='utf-8') as html:
+                    html_string = html.read()
+
+                content = MIMEText(html_string, 'html')
+
+                msg.attach(content)
+
+                already_sent = set()
+
+                for client in clients:
+                    if client.email not in already_sent:
+                        already_sent.add(client.email)
+
+                smtp = smtplib.SMTP(host=_mail_server, port=_port)
+                smtp.starttls()
+                smtp.login(_from, _pwd)
+
+                msg['To'] = ','.join(already_sent)
+                smtp.send_message(msg)
+                del msg
+                del already_sent
+                smtp.quit()
+
+                return Response(data={'message': 'emails sent'}, status=200)
+            else:
+                return Response(data={'errors': 'campaign id filter missing'}, status=400)
+        except Exception as e:
+            return Response(data={"errors": str(e)}, status=500)
