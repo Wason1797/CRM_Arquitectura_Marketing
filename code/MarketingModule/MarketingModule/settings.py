@@ -90,8 +90,8 @@ WSGI_APPLICATION = 'MarketingModule.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.oracle',
-        'NAME': 'mkdb',
-        'USER': 'admin',
+        'NAME': 'orcl',
+        'USER': 'crm',
         'PASSWORD': get_secret('DB_PWD'),
         'HOST': get_secret('DB_HOST'),
         'PORT': '1521'

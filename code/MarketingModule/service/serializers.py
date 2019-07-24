@@ -1,5 +1,5 @@
 from rest_framework.serializers import ModelSerializer, JSONField, \
-    DecimalField, EmailField, ChoiceField, IntegerField, DateField
+    DecimalField, EmailField, ChoiceField, IntegerField, DateField, CharField
 from .models import Campaign, Client, Advisor, TelemarketingResult
 
 
@@ -20,14 +20,15 @@ class ClientSerializer(ModelSerializer):
 
     location = JSONField(required=False)
     email = EmailField()
-    earnings = DecimalField(max_digits=9, decimal_places=2, required=False)
+    salary = DecimalField(max_digits=9, decimal_places=2, required=False, source='earnings')
     gender = ChoiceField(choices=['M', 'F'], required=False)
     total_campaigns = IntegerField(required=False)
     birth_date = DateField(required=False)
+    name = CharField(max_length=256, source='full_name')
 
     class Meta:
         model = Client
-        fields = '__all__'
+        fields = ('location', 'email', 'salary', 'gender', 'total_campaigns', 'birth_date', 'name', 'dni')
 
 
 class AdvisorSerializer(ModelSerializer):

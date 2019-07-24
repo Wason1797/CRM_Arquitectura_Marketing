@@ -28,8 +28,8 @@ class CampaignView(APIView):
                     gender=updated_data.get('gender_range'),
                     min_age=int(age_range[0]),
                     max_age=int(age_range[1]),
-                    min_salary=earning_range[0],
-                    max_salary=int(earning_range[1]))
+                    min_salary=float(earning_range[0]),
+                    max_salary=float(earning_range[1]))
                 curated_clients = []
                 for client in clients:
                     if not Client.objects.filter(dni=client.get('dni')).exists():
@@ -37,6 +37,8 @@ class CampaignView(APIView):
                 serialized_clients = ClientSerializer(data=curated_clients, many=True)
                 if serialized_clients.is_valid():
                     serialized_clients.save()
+                else:
+                    print(serialized_clients.errors)
 
                 del curated_clients
                 client_dnis = []
@@ -147,12 +149,12 @@ class CampaignLocationReportView(APIView):
             return Response(data=result_list, status=200)
         elif city is None:
             campaigns_by_location = Campaign.json_objects.filter_json(
-                Q(location__provincia=province) &
+                Q(location_province=province) &
                 Q(created_by=created_by))
         else:
             campaigns_by_location = Campaign.json_objects.filter_json(
-                Q(location__provincia=province) &
-                Q(location__canton=city) &
+                Q(location__province=province) &
+                Q(location__city=city) &
                 Q(created_by=created_by))
 
         return Response(CampaignSerializer(campaigns_by_location, many=True).data,
