@@ -24,12 +24,14 @@ class CampaignView(APIView):
                 data=updated_data, partial=True)
             if serialized_campaign.is_valid():
                 clients = get_campaign_clients(
-                    location=updated_data.get('location').get('provincia'),
+                    location=updated_data.get('location').get('province'),
                     gender=updated_data.get('gender_range'),
                     min_age=int(age_range[0]),
                     max_age=int(age_range[1]),
                     min_salary=float(earning_range[0]),
                     max_salary=float(earning_range[1]))
+                if len(clients) == 0:
+                    return Response(data={'warning': 'no clients found'}, status=404)
                 curated_clients = []
                 for client in clients:
                     if not Client.objects.filter(dni=client.get('dni')).exists():
@@ -64,7 +66,8 @@ class CampaignView(APIView):
                             'campaign': campaign.id,
                             'advisor': advisor,
                             'created_by': campaign.created_by,
-                            'modified_by': campaign.modified_by
+                            'modified_by': campaign.created_by,
+                            'creator_enterprise': campaign.creator_enterprise
                         })
 
                 serialized_telemarketing = TelemarketingResultSerializer(data=telemarketing_results, many=True)
@@ -82,13 +85,13 @@ class CampaignView(APIView):
     def get(self, request):
         try:
             campaign_id = request.GET.get('campaign_id')
-            created_by = request.GET.get('created_by')
+            creator_enterprise = request.GET.get('creator_enterprise')
             if campaign_id:
                 campaing = Campaign.objects.get(id=int(campaign_id))
                 return Response(data=CampaignSerializer(campaing).data,
                                 status=200)
-            elif created_by:
-                return Response(CampaignSerializer(Campaign.objects.filter(created_by=int(created_by)), many=True).data,
+            elif creator_enterprise:
+                return Response(CampaignSerializer(Campaign.objects.filter(creator_enterprise=creator_enterprise), many=True).data,
                                 status=200)
             else:
                 return Response(CampaignSerializer(Campaign.objects.all(), many=True).data,
@@ -129,17 +132,17 @@ class AdvisorView(APIView):
 class CampaignLocationReportView(APIView):
 
     def get(self, request):
-        created_by = request.GET.get('created_by')
+        creator_enterprise = request.GET.get('creator_enterprise')
         province = request.GET.get('province')
         city = request.GET.get('city')
-        if province is None and created_by:
+        if province is None and creator_enterprise:
             result = dict()
-            campaigns = Campaign.json_objects.filter(created_by=int(created_by))
+            campaigns = Campaign.json_objects.filter(creator_enterprise=creator_enterprise)
             for campaign in campaigns:
-                if campaign.location.get('provincia') in result:
-                    result[campaign.location.get('provincia')] += 1
+                if campaign.location.get('province') in result:
+                    result[campaign.location.get('province')] += 1
                 else:
-                    result[campaign.location.get('provincia')] = 1
+                    result[campaign.location.get('province')] = 1
             result_list = []
             for key, value in result.items():
                 result_list.append({
@@ -149,13 +152,13 @@ class CampaignLocationReportView(APIView):
             return Response(data=result_list, status=200)
         elif city is None:
             campaigns_by_location = Campaign.json_objects.filter_json(
-                Q(location_province=province) &
-                Q(created_by=created_by))
+                Q(location__province=province) &
+                Q(creator_enterprise=creator_enterprise))
         else:
             campaigns_by_location = Campaign.json_objects.filter_json(
                 Q(location__province=province) &
                 Q(location__city=city) &
-                Q(created_by=created_by))
+                Q(creator_enterprise=creator_enterprise))
 
         return Response(CampaignSerializer(campaigns_by_location, many=True).data,
                         status=200)
@@ -165,10 +168,10 @@ class CampaignGenderReportView(APIView):
 
     def get(self, request):
         try:
-            created_by = request.GET.get('created_by')
+            creator_enterprise = request.GET.get('creator_enterprise')
             gender = request.GET.get('gender')
-            if gender and created_by:
-                campaigns_by_gender = Campaign.objects.filter(Q(gender_range=gender) & Q(created_by=created_by))
+            if gender and creator_enterprise:
+                campaigns_by_gender = Campaign.objects.filter(Q(gender_range=gender) & Q(creator_enterprise=creator_enterprise))
                 return Response(CampaignSerializer(campaigns_by_gender, many=True).data,
                                 status=200)
 
@@ -199,8 +202,8 @@ class ClientsTotalCampaignsReport(APIView):
 
     def get(self, request):
         try:
-            created_by = request.GET.get('created_by')
-            clients_by_campaign = Client.objects.filter(campaign__created_by=int(created_by))\
+            creator_enterprise = request.GET.get('creator_enterprise')
+            clients_by_campaign = Client.objects.filter(campaign__creator_enterprise=creator_enterprise)\
                 .values('id', 'dni', 'email', 'full_name').annotate(
                 total_campaigns=Count('campaignclients__campaign_id')).order_by('-total_campaigns')[:10]
             return Response(data=ClientSerializer(clients_by_campaign, many=True).data,
@@ -214,7 +217,7 @@ class TelemarketingResultView(APIView):
     def get(self, request):
 
         try:
-            created_by = request.GET.get('created_by')
+            enterprise = request.GET.get('enterprise')
             advisor = request.GET.get('advisor')
             campaign = request.GET.get('campaign')
             client = request.GET.get('client')
@@ -225,9 +228,9 @@ class TelemarketingResultView(APIView):
                         client__id=int(client),
                         campaign__id=int(campaign))
                 ).data, status=200)
-            elif created_by:
+            elif enterprise:
                 return Response(data=TelemarketingResultSerializer(
-                    TelemarketingResult.objects.filter(campaign__created_by=created_by), many=True).data, status=200)
+                    TelemarketingResult.objects.filter(campaign__creator_enterprise=enterprise), many=True).data, status=200)
             else:
                 return Response(data={"errors": "missing created by or advisor, campaign, client filters"}, status=400)
         except Exception as e:
@@ -335,7 +338,7 @@ class SendEmails(APIView):
                 relative_path = campaign.publicity_configuration.get('path')
 
                 path = get_file_from_s3_service(
-                    'http://18.207.118.94:3000/documentfolder/14{}/alex'.format(relative_path))
+                    'http://3.91.68.253:3001/{}'.format(relative_path))
 
                 with open(path, mode='r', encoding='utf-8') as html:
                     html_string = html.read()

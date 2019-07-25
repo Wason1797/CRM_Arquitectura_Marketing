@@ -2,14 +2,13 @@
 def get_campaign_clients(**kargs):
 
     from requests import get
-    from datetime import datetime
-    data = get('http://18.234.82.210:8081/clientes/{}/{}/{}/{}/{}/{}'.
-               format(kargs.get('gender'), kargs.get('min_salary'), kargs.get('max_salary'),
-                      kargs.get('location'), kargs.get('min_age'), kargs.get('max_age'))).json()
-
-    for item in data:
-        item['birth_date'] = datetime.fromisoformat(item['birth_date'])
-
+    uri = 'http://52.91.25.186:8080/clientes/{}/{}/{}/{}/{}/{}'.format(kargs.get('gender'), kargs.get('min_salary'),
+                                                                       kargs.get('max_salary'), kargs.get('location'),
+                                                                       kargs.get('min_age'), kargs.get('max_age'))
+    data = get(uri).json()
+    for i in range(len(data)):
+        data[i]['birth_date'] = data[i]['birth_date'].split('+')[0].split('T')[0]
+        del data[i]['id']
     return data
     # return [
     #     {
@@ -17,33 +16,33 @@ def get_campaign_clients(**kargs):
     #             "provincia": "pichincha"
     #         },
     #         "email": "wabrborich@hotmail.com",
-    #         "earnings": "270.00",
+    #         "salary": "270.00",
     #         "gender": "M",
     #         "birth_date": "1997-08-17",
     #         "dni": "1724561921",
-    #         "full_name": "Wladymir Brborich"
+    #         "name": "Wladymir Brborich"
     #     },
     #     {
     #         "location": {
     #             "provincia": "pichincha"
     #         },
     #         "email": "ssins@outlook.es",
-    #         "earnings": "300.00",
+    #         "salary": "300.00",
     #         "gender": "M",
     #         "birth_date": "2019-07-01",
     #         "dni": "1802105641",
-    #         "full_name": "Alexander Herrera"
+    #         "name": "Alexander Herrera"
     #     },
     #     {
     #         "location": {
     #             "provincia": "pichincha"
     #         },
     #         "email": "wbrborich@hotmail.com",
-    #         "earnings": "700.00",
+    #         "salary": "700.00",
     #         "gender": "M",
     #         "birth_date": "2019-07-01",
     #         "dni": "1724561922",
-    #         "full_name": "Alexander Mejia"
+    #         "name": "Alexander Mejia"
     #     }
     # ]
 

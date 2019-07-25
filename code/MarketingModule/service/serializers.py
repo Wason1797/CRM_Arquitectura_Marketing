@@ -28,7 +28,16 @@ class ClientSerializer(ModelSerializer):
 
     class Meta:
         model = Client
-        fields = ('location', 'email', 'salary', 'gender', 'total_campaigns', 'birth_date', 'name', 'dni')
+        fields = (
+            'location',
+            'email',
+            'salary',
+            'gender',
+            'total_campaigns',
+            'birth_date',
+            'name',
+            'dni',
+            'id')
 
 
 class AdvisorSerializer(ModelSerializer):

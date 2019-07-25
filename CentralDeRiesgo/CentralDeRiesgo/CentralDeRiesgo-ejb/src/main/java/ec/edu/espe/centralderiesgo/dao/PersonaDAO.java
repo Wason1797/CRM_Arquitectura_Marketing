@@ -18,7 +18,7 @@ public class PersonaDAO {
 
     private static final Logger LOG = Logger.getLogger(PersonaDAO.class.getName());
 
-    private final String redisHost = "localhost";
+    private final String redisHost = "ec2-52-90-125-36.compute-1.amazonaws.com";
     private final Integer redisPort = 6379;
     private JedisPool jedisPool;
     private Jedis jedis;
