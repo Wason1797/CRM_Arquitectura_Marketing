@@ -63,8 +63,8 @@ def calculate_risk(client, ip):
     salary = client.earnings
     debt = get_person_from_risk_db(client.dni, ip)['deuda']
 
-    return 'HIG' if debt > salary*2 else 'MID' if debt >= salary else 'LOW'
-
+    risk = 'HIG' if debt >= salary*2 else 'MID' if debt >= salary else 'LOW'
+    return risk, debt
 
 def get_list_chunks(_list, size):
 

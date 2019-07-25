@@ -305,8 +305,8 @@ class CalculateRiskView(APIView):
         try:
             client_id = request.GET.get('client_id')
             client = Client.objects.get(id=client_id)
-            risk = calculate_risk(client, 'localhost')
-            return Response(data=dict({'risk': risk}, **ClientSerializer(client).data))
+            risk, debt = calculate_risk(client, 'localhost')
+            return Response(data=dict({'risk': risk, 'debt': debt}, **ClientSerializer(client).data))
         except Exception as e:
             return Response(data={"errors": str(e)}, status=500)
 
@@ -337,9 +337,9 @@ class SendEmails(APIView):
 
                 relative_path = campaign.publicity_configuration.get('path')
 
-                path = get_file_from_s3_service(
-                    'http://3.91.68.253:3001/{}'.format(relative_path))
-
+                # path = get_file_from_s3_service(
+                #     'http://3.91.68.253:3001/{}'.format(relative_path))
+                path = 'example_html.html'
                 with open(path, mode='r', encoding='utf-8') as html:
                     html_string = html.read()
 
